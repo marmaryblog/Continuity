@@ -287,7 +287,8 @@ textarea{width:100%;min-height:120px;resize:vertical;padding:14px;font-family:in
 </div>
 <div class="chain" id="chain"></div>
 <p style="font-size:13px;margin-top:10px">روی هر روز بزن تا تیک‌های همون روز رو ببینی یا اصلاح کنی. جمعه‌ها 🌿 روز ریکاوری‌اند: تیک ندارن، صفر حساب نمی‌شن و زنجیره رو نمی‌شکنن.</p>
-<div class="row"><button id="todayBtn" class="ghost">برگرد به امروز</button><button id="endBtn" class="ghost">🏁 پایان چالش</button></div>
+<div class="row"><button id="todayBtn" class="ghost">برگرد به امروز</button></div>
+<div class="row"><button id="endBtn" class="danger" style="width:100%;min-height:52px;font-size:15px;font-weight:800;border-radius:999px">🏁 پایان چالش</button></div>
 </div>
 </div>
 
@@ -310,6 +311,13 @@ textarea{width:100%;min-height:120px;resize:vertical;padding:14px;font-family:in
 <div id="reportMsg" class="msg"></div>
 </div>
 
+<div class="card" id="subCard">
+<h2>💎 اشتراک</h2>
+<p id="subPlanLine" style="font-weight:700">اشتراک فعلی: رایگان</p>
+<p id="subNote" style="font-size:13px;line-height:1.9">در حال حاضر استفاده از برنامه رایگانه. پرداخت اشتراک ویژه (از طریق زرین‌پال) بعداً فعال می‌شه و حساب و داده‌هات حفظ می‌شن.</p>
+<button id="subUpgradeBtn" class="btn" style="width:100%" disabled>ارتقای به اشتراک ویژه (به‌زودی)</button>
+</div>
+
 <section id="adminView" class="card hidden" style="border-color:#c7d2fe;background:#eef2ff">
 <h2>🛡️ پنل ادمین</h2>
 <p>فقط تو این بخش را می‌بینی. عادت‌های خصوصی کاربران با اسم کامل نمایش داده نمی‌شود؛ فقط تعداد و آمار کلی هر کاربر.</p>
@@ -322,12 +330,13 @@ textarea{width:100%;min-height:120px;resize:vertical;padding:14px;font-family:in
 <h2 style="margin-top:20px">📈 تیک‌های ۱۴ روز اخیر</h2><div id="aChart"></div>
 <h2 style="margin-top:20px">👥 کاربران</h2>
 <div style="overflow-x:auto"><table>
-<thead><tr><th>کاربر</th><th>ایمیل</th><th>عادت</th><th>تیک</th><th>آخرین فعالیت</th><th>وضعیت</th><th>مدیریت</th></tr></thead>
+<thead><tr><th>کاربر</th><th>ایمیل</th><th>عادت</th><th>تیک</th><th>آخرین فعالیت</th><th>وضعیت</th><th>اشتراک</th><th>مدیریت</th></tr></thead>
 <tbody id="aUsersTable"></tbody></table></div>
 <div class="note">مدیریت در این نسخه: غیرفعال‌کردن یعنی کاربر دیگر نمی‌تواند وارد اپ شود (اما حسابش در Auth می‌ماند) و «حذف داده» یعنی حذف عادت‌ها و تیک‌هایش. حذف کامل حساب Auth فقط از داشبورد سوپابیس انجام می‌شود، چون کلید امن آن نباید در کد فرانت‌اند باشد.</div>
 </section>
 </section>
 </div>
+<p id="versionFooter" style="text-align:center;font-size:12px;color:#9ca3af;margin:24px 0 8px">نسخه: پایان چالش + گزارش روزانه + میانبر + اشتراک آماده</p>
 
 <script>
 const SUPABASE_URL = 'https://zzzsnjagsokjsrrjercc.supabase.co';
@@ -432,10 +441,32 @@ $('endBtn').onclick=async()=>{
     profile.challenge_start=null; viewDate=localISO(new Date()); renderApp();
   }catch(e){alert(fmtErr(e));}
 };
+/* ===== اشتراک (آماده‌سازی برای پرداخت آینده — فعلاً همه‌چیز رایگان است) ===== */
+function isPremium(pr){ if(!pr) return false; if(pr.plan!=='premium') return false; if(!pr.subscription_ends_at) return true; return new Date(pr.subscription_ends_at) > new Date(); }
+function renderSubscription(){
+  var el=$('subPlanLine'); if(!el) return;
+  if(isPremium(profile)){
+    var txt='اشتراک فعلی: 💎 ویژه';
+    if(profile.subscription_ends_at){ try{ txt+=' تا '+faDate(new Date(profile.subscription_ends_at)); }catch(e){} }
+    el.textContent=txt;
+  } else { el.textContent='اشتراک فعلی: رایگان'; }
+}
+/* ZarinPal integration placeholder — NO payment runs now, NO merchant credential, NO secret in this file.
+   Future flow (to implement only when paid subscriptions are activated):
+   1) Frontend asks a secure server/edge function (never this file) to POST a ZarinPal payment request with amount + callback URL.
+   2) User is redirected to ZarinPal to pay.
+   3) ZarinPal redirects back to the callback; the callback verifies the payment with ZarinPal.
+   4) Only after successful verification: insert a row into subscriptions (status 'paid', authority, ref_id) and PATCH profiles plan='premium', subscription_status='premium', subscription_ends_at = end of period.
+   Until then, every feature stays open for free users.
+   PREMIUM GATE PLACEHOLDER: when a feature should become premium-only, check it here, e.g. if(!isPremium(profile)){ show upgrade note and return; }
+   — but DO NOT lock anything now: premiumGatePlaceholder() always returns true, so nobody loses anything. */
+function premiumGatePlaceholder(){ return true; }
+
 async function showApp(){
   $('authView').classList.add('hidden');$('appView').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');
   $('hello').textContent='سلام '+(profile?.display_name||'')+' 👋';
   viewDate=localISO(new Date()); await renderApp();
+  renderSubscription();
   if(profile?.is_admin) await renderAdmin();
 }
 async function renderApp(){
@@ -584,12 +615,20 @@ async function renderAdmin(){
     const cc=(checks||[]).filter(c=>c.user_id===u.id);
     const last=cc.length?cc.map(c=>c.date).sort().pop():'—';
     return `<tr><td>${u.display_name||'—'}</td><td>${u.email||''}</td><td>${hc}</td><td>${cc.length}</td><td>${last}</td><td>${u.is_active===false?'غیرفعال':u.is_admin?'ادمین':'فعال'}</td>
+    <td>${u.plan==='premium'?'💎 ویژه':'رایگان'}</td>
     <td><button class="ghost" data-toggle="${u.id}" data-state="${u.is_active===false}"> ${u.is_active===false?'فعال کن':'غیرفعال کن'}</button>
+    <button class="ghost" data-plan="${u.id}" data-plan-to="${u.plan==='premium'?'free':'premium'}">${u.plan==='premium'?'به رایگان برگردان':'💎 ویژه کن'}</button>
     <button class="danger" data-wipe="${u.id}">حذف داده</button></td></tr>`;
   }).join('');
   $('aUsersTable').querySelectorAll('[data-toggle]').forEach(b=>b.onclick=async()=>{
     const makeActive=b.dataset.state==='true';
     await rest('profiles',{method:'PATCH',body:{is_active:makeActive},query:'id=eq.'+encodeURIComponent(b.dataset.toggle)}); renderAdmin();
+  });
+  $('aUsersTable').querySelectorAll('[data-plan]').forEach(b=>b.onclick=async()=>{
+    const to=b.dataset.planTo;
+    await rest('profiles',{method:'PATCH',body:{plan:to,subscription_status:to},query:'id=eq.'+encodeURIComponent(b.dataset.plan)});
+    if(profile && b.dataset.plan===profile.id){profile.plan=to; profile.subscription_status=to; renderSubscription();}
+    renderAdmin();
   });
   $('aUsersTable').querySelectorAll('[data-wipe]').forEach(b=>b.onclick=async()=>{
     if(!confirm('همه‌ی عادت‌ها و تیک‌های این کاربر حذف شود؟ حساب Auth او باقی می‌ماند.'))return;
