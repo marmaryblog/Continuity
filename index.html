@@ -350,7 +350,7 @@ textarea{width:100%;min-height:120px;resize:vertical;padding:14px;font-family:in
 </section>
 </section>
 </div>
-<p id="versionFooter" style="text-align:center;font-size:12px;color:#9ca3af;margin:24px 0 8px">نسخه: عادت قبل از چالش + امتیاز روزانه + گزارش ماهانه + ترتیب تاریخ</p>
+<p id="versionFooter" style="text-align:center;font-size:12px;color:#9ca3af;margin:24px 0 8px">نسخه: عادت قبل از چالش + امتیاز روزانه + گزارش ماهانه</p>
 
 <script>
 const SUPABASE_URL = 'https://zzzsnjagsokjsrrjercc.supabase.co';
@@ -360,10 +360,7 @@ let session=null, user=null, profile=null, mode='login', viewDate='', recoveryTo
 let currentReportId=null, lastReportDate='';
 function localISO(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 function parseISO(s){return new Date(s+'T12:00:00');}
-function faParts(d,opts){try{var parts=new Intl.DateTimeFormat('fa-IR',opts).formatToParts(d);var o={};parts.forEach(function(x){o[x.type]=x.value;});return o;}catch(e){return {};}}
-function faDate(d){var o=faParts(d,{weekday:'long',day:'numeric',month:'long',year:'numeric'});if(o.weekday&&o.day&&o.month&&o.year) return o.weekday+'، '+o.day+' '+o.month+' '+o.year;try{return d.toLocaleDateString('fa-IR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});}catch(e){return localISO(d);}}
-function faMonthYear(d){var o=faParts(d,{month:'long',year:'numeric'});if(o.month&&o.year) return o.month+' '+o.year;try{return d.toLocaleDateString('fa-IR',{month:'long',year:'numeric'});}catch(e){return localISO(d);}}
-function faDayMonth(d){var o=faParts(d,{month:'short',day:'numeric'});if(o.day&&o.month) return o.day+' '+o.month;try{return d.toLocaleDateString('fa-IR',{month:'short',day:'numeric'});}catch(e){return localISO(d);}}
+function faDate(d){try{return d.toLocaleDateString('fa-IR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});}catch(e){return localISO(d);}}
 function isFriday(d){return d.getDay()===5;}
 function setMode(m){mode=m;$('tabLogin').classList.toggle('active',m==='login');$('tabSignup').classList.toggle('active',m==='signup');$('signupNameWrap').classList.toggle('hidden',m!=='signup');$('authBtn').textContent=m==='login'?'ورود':'ثبت‌نام';}
 $('tabLogin').onclick=()=>setMode('login'); $('tabSignup').onclick=()=>setMode('signup');
@@ -524,7 +521,7 @@ function renderMonthlyReport(habits, byDate){
   var el=$('monthlyLine'); if(!el) return;
   var now=new Date();
   var y=now.getFullYear(), m=now.getMonth();
-  var monthName=faMonthYear(new Date(y,m,1));
+  var monthName=''; try{ monthName=new Date(y,m,1).toLocaleDateString('fa-IR',{month:'long',year:'numeric'}); }catch(e){ monthName=(y+'-'+(m+1)); }
   $('monthlyMonthLine').textContent='ماه: '+monthName;
   if(!habits||!habits.length){ el.textContent='هنوز عادتی نداری.'; $('monthlyDetail').textContent=''; return; }
   var lastDay=new Date(y,m+1,0).getDate();
@@ -668,7 +665,7 @@ async function renderAdmin(){
   // نمودار ۱۴ روز
   let chart=''; const maxC=Math.max(1,...Array.from({length:14},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(13-i));return (checks||[]).filter(c=>c.date===localISO(d)).length;}));
   for(let i=13;i>=0;i--){const d=new Date();d.setDate(d.getDate()-i);const k=localISO(d);const n=(checks||[]).filter(c=>c.date===k).length;
-    chart+=`<div class="bar-row"><span style="width:90px">${faDayMonth(d)}</span><div class="bar" style="width:${Math.round(n/maxC*100)}%"></div><span>${n}</span></div>`;}
+    chart+=`<div class="bar-row"><span style="width:90px">${d.toLocaleDateString('fa-IR',{month:'short',day:'numeric'})}</span><div class="bar" style="width:${Math.round(n/maxC*100)}%"></div><span>${n}</span></div>`;}
   $('aChart').innerHTML=chart;
   $('aUsersTable').innerHTML=(users||[]).map(u=>{
     const hc=(habits||[]).filter(h=>h.user_id===u.id).length;
