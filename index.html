@@ -302,6 +302,19 @@ textarea{width:100%;min-height:120px;resize:vertical;padding:14px;font-family:in
 
 <div class="card"><h2>عادت‌های من</h2><p id="selectedDayLine" style="font-weight:700;color:#374151"></p><p id="fridayNote" class="hidden" style="color:#15803d">🌿 امروز جمعه است — روز ریکاوری کامل. تیک نداره و زنجیره‌ت رو نمی‌شکنه.</p><div id="habitList"></div></div>
 
+<div class="card" id="scoreCard">
+<h2>⭐ امتیاز روزانه</h2>
+<p id="scoreLine" style="font-weight:700;color:#374151">هنوز امتیازی ثبت نشده.</p>
+<p id="scoreDetail" style="font-size:13px;color:#6b7280"></p>
+</div>
+
+<div class="card" id="monthlyCard">
+<h2>📊 گزارش عملکرد ماهانه</h2>
+<p id="monthlyMonthLine" style="font-weight:700;color:#374151"></p>
+<p id="monthlyLine" style="font-weight:700"></p>
+<p id="monthlyDetail" style="font-size:13px;color:#6b7280"></p>
+</div>
+
 <div class="card" id="reportCard">
 <h2>📝 گزارش روزانه</h2>
 <p id="reportDayLine" style="font-weight:700;color:#374151"></p>
@@ -311,7 +324,8 @@ textarea{width:100%;min-height:120px;resize:vertical;padding:14px;font-family:in
 <div id="reportMsg" class="msg"></div>
 </div>
 
-<div class="card" id="subCard">
+<!-- SUBSCRIPTION HIDDEN FOR NOW: remove the hidden class below to show the subscription card again -->
+<div class="card hidden" id="subCard">
 <h2>💎 اشتراک</h2>
 <p id="subPlanLine" style="font-weight:700">اشتراک فعلی: رایگان</p>
 <p id="subNote" style="font-size:13px;line-height:1.9">در حال حاضر استفاده از برنامه رایگانه. پرداخت اشتراک ویژه (از طریق زرین‌پال) بعداً فعال می‌شه و حساب و داده‌هات حفظ می‌شن.</p>
@@ -336,7 +350,7 @@ textarea{width:100%;min-height:120px;resize:vertical;padding:14px;font-family:in
 </section>
 </section>
 </div>
-<p id="versionFooter" style="text-align:center;font-size:12px;color:#9ca3af;margin:24px 0 8px">نسخه: پایان چالش + گزارش روزانه + میانبر + اشتراک آماده</p>
+<p id="versionFooter" style="text-align:center;font-size:12px;color:#9ca3af;margin:24px 0 8px">نسخه: عادت قبل از چالش + امتیاز روزانه + گزارش ماهانه</p>
 
 <script>
 const SUPABASE_URL = 'https://zzzsnjagsokjsrrjercc.supabase.co';
@@ -469,6 +483,63 @@ async function showApp(){
   renderSubscription();
   if(profile?.is_admin) await renderAdmin();
 }
+
+function renderHabitList(habits, byDate){
+  var fridayView=isFriday(parseISO(viewDate));
+  if(!habits||!habits.length){$('habitList').innerHTML='<p>هنوز عادتی نداری 🌱</p>';}
+  else $('habitList').innerHTML=habits.map(h=>{
+    const isDone=!!(byDate[viewDate]&&byDate[viewDate][h.id]);
+    return `<div class="habit ${isDone?'done':''}"><span style="font-size:26px">${h.emoji||'✅'}</span><div class="nm">${h.name}</div>
+    <button class="check ${isDone?'on':''}" data-check="${h.id}" ${fridayView?'disabled':''}>${isDone?'✓':''}</button>
+    <button class="danger" data-del="${h.id}">حذف</button></div>`;
+  }).join('');
+  $('habitList').querySelectorAll('[data-check]').forEach(b=>b.onclick=async()=>{
+    const hid=b.dataset.check;
+    const exRows=await rest('checks',{query:'select=id&habit_id=eq.'+encodeURIComponent(hid)+'&date=eq.'+encodeURIComponent(viewDate)});
+    const ex=(exRows&&exRows[0])||null;
+    if(ex) await rest('checks',{method:'DELETE',query:'id=eq.'+encodeURIComponent(ex.id)});
+    else await rest('checks',{method:'POST',body:{habit_id:hid,user_id:profile.id,date:viewDate}});
+    renderApp();
+  });
+  $('habitList').querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
+    if(!confirm('این عادت و تیک‌هایش حذف شود؟'))return;
+    await rest('habits',{method:'DELETE',query:'id=eq.'+encodeURIComponent(b.dataset.del)}); renderApp();
+  });
+}
+function renderDailyScore(habits, byDate){
+  var el=$('scoreLine'); if(!el) return;
+  var vd=parseISO(viewDate);
+  if(isFriday(vd)){ el.textContent='🌿 روز ریکاوری — امروز امتیازی ندارد.'; $('scoreDetail').textContent='جمعه‌ها تیک ندارن و زنجیره رو نمی‌شکنن.'; return; }
+  if(!habits||!habits.length){ el.textContent='هنوز عادتی نداری — اول یک عادت اضافه کن.'; $('scoreDetail').textContent=''; return; }
+  var done=habits.filter(h=>byDate[viewDate]&&byDate[viewDate][h.id]).length;
+  var total=habits.length;
+  var pct=Math.round(done/total*100);
+  el.textContent='⭐ امتیاز '+faDate(vd)+': '+(done*10)+' از '+(total*10)+' امتیاز ('+pct+'٪)';
+  $('scoreDetail').textContent=done+' از '+total+' عادت انجام شده. هر عادت ۱۰ امتیاز دارد.';
+}
+function renderMonthlyReport(habits, byDate){
+  var el=$('monthlyLine'); if(!el) return;
+  var now=new Date();
+  var y=now.getFullYear(), m=now.getMonth();
+  var monthName=''; try{ monthName=new Date(y,m,1).toLocaleDateString('fa-IR',{month:'long',year:'numeric'}); }catch(e){ monthName=(y+'-'+(m+1)); }
+  $('monthlyMonthLine').textContent='ماه: '+monthName;
+  if(!habits||!habits.length){ el.textContent='هنوز عادتی نداری.'; $('monthlyDetail').textContent=''; return; }
+  var lastDay=new Date(y,m+1,0).getDate();
+  var upto=Math.min(now.getDate(), lastDay);
+  var activeDays=0, fullDays=0, checkedDays=0, totalTicks=0, possible=0;
+  for(var d=1; d<=upto; d++){
+    var dt=new Date(y,m,d); if(isFriday(dt)) continue;
+    activeDays++; possible+=habits.length;
+    var k=localISO(dt);
+    var done=habits.filter(h=>byDate[k]&&byDate[k][h.id]).length;
+    totalTicks+=done;
+    if(done>0) checkedDays++;
+    if(done===habits.length) fullDays++;
+  }
+  var avg=possible?Math.round(totalTicks/possible*100):0;
+  el.textContent='📊 میانگین تکمیل: '+avg+'٪ — '+fullDays+' روز کامل از '+activeDays+' روز فعال';
+  $('monthlyDetail').textContent='مجموع تیک‌ها: '+totalTicks+' از '+possible+' | روزهایی که حداقل یک عادت انجام شد: '+checkedDays;
+}
 async function renderApp(){
   const today=localISO(new Date());
   if(!viewDate) viewDate=today;
@@ -480,9 +551,11 @@ async function renderApp(){
   $('statTotal').textContent=(checks||[]).length; $('statHabits').textContent=(habits||[]).length;
   if(!profile.challenge_start){
     $('startCard').classList.remove('hidden'); $('challengeCard').classList.add('hidden');
-    $('selectedDayLine').textContent='برای دیدن زنجیره، اول چالش را شروع کن.';
-    $('habitList').innerHTML='<p>عادت‌هایت را از بخش بالا اضافه کن 🌱</p>';
-    $('fridayNote').classList.add('hidden');
+    $('selectedDayLine').textContent='تیک‌های '+faDate(parseISO(viewDate))+' — چالش هنوز شروع نشده، ولی عادت‌ها رو می‌تونی همین‌جا ببینی و تیک بزنی 🌱';
+    $('fridayNote').classList.toggle('hidden',!isFriday(parseISO(viewDate)));
+    renderHabitList(habits, byDate);
+    renderDailyScore(habits, byDate);
+    renderMonthlyReport(habits, byDate);
     await renderReport();
     return;
   }
@@ -536,25 +609,9 @@ async function renderApp(){
   $('statToday').textContent=doneView+' از '+(habits||[]).length;
   const fridayView=isFriday(vd);
   $('fridayNote').classList.toggle('hidden',!fridayView);
-  if(!habits||!habits.length){$('habitList').innerHTML='<p>هنوز عادتی نداری 🌱</p>';}
-  else $('habitList').innerHTML=habits.map(h=>{
-    const isDone=!!(byDate[viewDate]&&byDate[viewDate][h.id]);
-    return `<div class="habit ${isDone?'done':''}"><span style="font-size:26px">${h.emoji||'✅'}</span><div class="nm">${h.name}</div>
-    <button class="check ${isDone?'on':''}" data-check="${h.id}" ${fridayView?'disabled':''}>${isDone?'✓':''}</button>
-    <button class="danger" data-del="${h.id}">حذف</button></div>`;
-  }).join('');
-  $('habitList').querySelectorAll('[data-check]').forEach(b=>b.onclick=async()=>{
-    const hid=b.dataset.check;
-    const exRows=await rest('checks',{query:'select=id&habit_id=eq.'+encodeURIComponent(hid)+'&date=eq.'+encodeURIComponent(viewDate)});
-    const ex=(exRows&&exRows[0])||null;
-    if(ex) await rest('checks',{method:'DELETE',query:'id=eq.'+encodeURIComponent(ex.id)});
-    else await rest('checks',{method:'POST',body:{habit_id:hid,user_id:profile.id,date:viewDate}});
-    renderApp();
-  });
-  $('habitList').querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{
-    if(!confirm('این عادت و تیک‌هایش حذف شود؟'))return;
-    await rest('habits',{method:'DELETE',query:'id=eq.'+encodeURIComponent(b.dataset.del)}); renderApp();
-  });
+  renderHabitList(habits, byDate);
+  renderDailyScore(habits, byDate);
+  renderMonthlyReport(habits, byDate);
   await renderReport();
 }
 async function renderReport(force){
